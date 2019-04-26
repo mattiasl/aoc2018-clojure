@@ -129,8 +129,8 @@
                                                          ["1518-11-01 00:30" "1518-11-01 00:55"]]
                                      "1518-11-03 00:05" [["1518-11-03 00:24" "1518-11-03 00:29"]]})
                 50))}
-  [data]
-  (->> (vals data)
+  [guard-data]
+  (->> (vals guard-data)
        (flatten)
        (partition 2)
        (map get-interval-time)
@@ -157,12 +157,64 @@
                  data)
       (:guard)))
 
+(defn get-minutes
+  {:test (fn []
+           (is= (get-minutes "1518-11-01 00:05") 5)
+           (is= (get-minutes "1518-11-01 00:08") 8)
+           (is= (get-minutes "1518-11-01 00:55") 55))}
+  [time-log]
+  (-> (re-pattern ":(0?)(\\d+)")
+      (re-find time-log)
+      (last)
+      (read-string)))
+
+(defn find-the-minute-when-the-guard-spend-asleep-the-most
+  {:test (fn []
+           (is= (find-the-minute-when-the-guard-spend-asleep-the-most
+                  {"1518-11-01 00:00" [["1518-11-01 00:05" "1518-11-01 00:25"]
+                                       ["1518-11-01 00:30" "1518-11-01 00:55"]]
+                   "1518-11-03 00:05" [["1518-11-03 00:24" "1518-11-03 00:29"]]})
+                {:minute 24 :number-of-times 2}))}
+  [guard-data]
+  (let [sleeping-intervals (->> (vals guard-data)
+                                (flatten)
+                                (partition 2)
+                                (map (fn [interval] (map get-minutes interval))))
+        [minute number-of-times] (->> (range 60)
+                                      (map (fn [minute]
+                                             (reduce (fn [number-of-times [falls-asleep wakes-up]]
+                                                       (if (and (<= falls-asleep minute)
+                                                                (< minute wakes-up))
+                                                         (inc number-of-times)
+                                                         number-of-times))
+                                                     0
+                                                     sleeping-intervals)))
+                                      (map-indexed (fn [index number-of-times] [index number-of-times]))
+                                      (sort-by second)
+                                      (last))]
+    {:minute minute :number-of-times number-of-times}))
+
 
 (deftest puzzle-part-1
-         (is= (->> (get-puzzle-input)
-                   (logs->data)
-                   (find-guard-with-most-minutes-asleep))
-              "#1777"))
+         (is= (let [data (->> (get-puzzle-input)
+                              (logs->data))
+                    guard (find-guard-with-most-minutes-asleep data)
+                    minute (:minute (find-the-minute-when-the-guard-spend-asleep-the-most (get data guard)))]
+                (* minute (read-string (subs guard 1))))
+              85296))
 
 (deftest puzzle-part-2
-         nil)
+         (is= (let [data (->> (get-puzzle-input)
+                              (logs->data))
+                    {guard  :guard
+                     minute :minute} (reduce-kv (fn [a guard guard-data]
+                                                  (let [{minute          :minute
+                                                         number-of-times :number-of-times}
+                                                        (find-the-minute-when-the-guard-spend-asleep-the-most guard-data)]
+                                                    (if (> number-of-times (:number-of-times a))
+                                                      {:guard guard :number-of-times number-of-times :minute minute}
+                                                      a)))
+                                                {:guard nil :number-of-times 0 :minute nil}
+                                                data)]
+                (* minute (read-string (subs guard 1))))
+              58559))
