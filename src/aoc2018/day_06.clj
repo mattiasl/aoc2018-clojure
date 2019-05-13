@@ -52,6 +52,14 @@
        (map abs)
        (apply +)))
 
+(defn get-bounding-rectangle-coordinates
+  [coordinates]
+  (let [{x-min :x-min x-max :x-max y-min :y-min y-max :y-max}
+        (get-bounding-rectangle coordinates)]
+    (for [x (range x-min (inc x-max))
+          y (range y-min (inc y-max))]
+      [x y])))
+
 (defn get-distances-within-bounding-rectangle
   {:test (fn []
            ; {[8 8] 5, [7 6] 4, ..., [4 8] :multiple-coordinates, ...}
@@ -62,11 +70,7 @@
                      [8 6])
                 :multiple-coordinates))}
   [starting-coordinates]
-  (let [{x-min :x-min x-max :x-max y-min :y-min y-max :y-max}
-        (get-bounding-rectangle starting-coordinates)
-        coordinates (for [x (range x-min (inc x-max))
-                          y (range y-min (inc y-max))]
-                      [x y])]
+  (let [coordinates (get-bounding-rectangle-coordinates starting-coordinates)]
     (reduce (fn [a coordinate]
               (let [{distance :distance
                      indexes  :closest-coordinate-indexes}
@@ -160,9 +164,28 @@
              :frequency 0}
             competing-values)))
 
-(deftest puzzle-part-a
-         ;; 9263 msecs
-         (is= (time (->> (get-puzzle-input)
-                         (find-most-frequent-value-not-on-the-boundary)
-                         (:frequency)))
-              4186))
+(comment
+  ;; 9263 msecs
+  (is= (time (->> (get-puzzle-input)
+                  (find-most-frequent-value-not-on-the-boundary)
+                  (:frequency)))
+       4186))
+
+(defn get-close-region
+  {:test (fn []
+           (is= (get-close-region test-coordinates 32)
+                16))}
+  [coordinates limit]
+  (->> coordinates
+       (get-bounding-rectangle-coordinates)
+       (filter (fn [c]
+                 (let [total-distance (->> coordinates
+                                           (map (fn [s-c] (manhattan-distance c s-c)))
+                                           (apply +))]
+                   (< total-distance limit))))
+       (count)))
+
+(comment
+  ;; 2645 msecs
+  (is= (time (get-close-region (get-puzzle-input) 10000))
+       45509))
