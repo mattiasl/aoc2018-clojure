@@ -1,5 +1,6 @@
 (ns aoc2018.day-07
-  (:require [ysera.test :refer [is= is is-not deftest]]
+  (:require [ysera.collections :refer [seq-contains?]]
+            [ysera.test :refer [is= is is-not deftest error?]]
             [clojure.string :as string]))
 
 (defn get-puzzle-input []
@@ -17,8 +18,10 @@
 (defn string-data->map-data
   {:test (fn []
            (is= (string-data->map-data "Step C must be finished before step A can begin.")
-                {:prerequisite "C" :task "A"}))}
+                {:prerequisite "C"
+                 :task         "A"}))}
   [string-data]
+  {:post [(not (nil? (:task %))) (not (nil? (:prerequisite %)))]}
   (let [pattern (re-pattern "Step (\\w) must be finished before step (\\w) can begin.")]
     (let [[_ p t] (re-find pattern string-data)]
       {:prerequisite p :task t})))
@@ -42,7 +45,7 @@
   {:test (fn []
            (is= (create-state test-data)
                 {:done-tasks    []
-                 :undone-tasks   ["A" "B" "C" "D" "E" "F"]
+                 :undone-tasks  ["A" "B" "C" "D" "E" "F"]
                  :prerequisites {"A" ["C"]
                                  "B" ["A"]
                                  "D" ["A"]
@@ -64,4 +67,95 @@
                                    (update a t conj p)
                                    (assoc a t [p])))
                                {}))})
+
+
+(defn do-one-task
+  {:test (fn []
+           (is= (-> (create-state test-data)
+                    (do-one-task))
+                {:done-tasks    ["C"]
+                 :undone-tasks  ["A" "B" "D" "E" "F"]
+                 :prerequisites {"B" ["A"]
+                                 "D" ["A"]
+                                 "E" ["B" "D" "F"]}}))}
+  [state]
+  (loop [[undone-task & rest-of-undone-tasks] (:undone-tasks state)]
+    (if (contains? (:prerequisites state) undone-task)
+      (recur rest-of-undone-tasks)
+      (-> state
+          (update :done-tasks conj undone-task)
+          (update :undone-tasks (fn [undone-tasks]
+                                  (remove (fn [u-t]
+                                            (= u-t undone-task))
+                                          undone-tasks)))
+          (update :prerequisites (fn [prerequisites]
+                                   (reduce-kv (fn [a k v]
+                                                (if-not (seq-contains? v undone-task)
+                                                  a
+                                                  (if (= (count (get a k)) 1)
+                                                    (dissoc a k)
+                                                    (update a k (fn [values]
+                                                                  (remove (fn [v]
+                                                                            (= v undone-task))
+                                                                          values))))))
+                                              prerequisites
+                                              prerequisites)))))))
+
+(defn do-all-tasks
+  {:test (fn []
+           (is= (-> (create-state test-data)
+                    (do-all-tasks))
+                {:done-tasks    ["C" "A" "B" "D" "F" "E"]
+                 :undone-tasks  []
+                 :prerequisites {}}))}
+  [state]
+  (loop [state state]
+    (let [state (do-one-task state)]
+      (if (empty? (:undone-tasks state))
+        state
+        (recur state)))))
+
+(deftest puzzle-part-1
+         (is= (->> (get-puzzle-input)
+                   (create-state)
+                   (do-all-tasks)
+                   (:done-tasks)
+                   (string/join ""))
+              "IJLFUVDACEHGRZPNKQWSBTMXOY"))
+
+
+(defn available-tasks
+  {:test (fn []
+           (is= (-> (create-state test-data)
+                    (do-one-task)
+                    (available-tasks))
+                ["A" "F"]))}
+  [state]
+  (->> (clojure.set/difference (set (:undone-tasks state))
+                               (set (keys (:prerequisites state))))
+       (into [])
+       (sort)))
+
+(defn get-task-time
+  {:test (fn []
+           (is= (get-task-time "A" 0) 1)
+           (is= (get-task-time "Z" 0) 26)
+           (is= (get-task-time "A" 60) 61)
+           (is= (get-task-time "Z" 60) 86)
+           (error? (get-task-time "_" 0)))}
+  [task delay]
+  {:pre [(re-matches (re-pattern "[A-Z]") task)]}
+  (+ delay (- (int (first task)) 64)))
+
+(defn do-all-tasks-simultaneously
+  [state number-of-workers]
+  ())
+
+
+
+
+
+
+
+
 
