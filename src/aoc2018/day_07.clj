@@ -44,7 +44,8 @@
 (defn create-state
   {:test (fn []
            (is= (create-state test-data)
-                {:done-tasks    []
+                {:time          0
+                 :done-tasks    []
                  :undone-tasks  ["A" "B" "C" "D" "E" "F"]
                  :prerequisites {"A" ["C"]
                                  "B" ["A"]
@@ -52,7 +53,8 @@
                                  "E" ["B" "D" "F"]
                                  "F" ["C"]}}))}
   [data]
-  {:done-tasks    []
+  {:time          0
+   :done-tasks    []
    :undone-tasks  (->> data
                        (map string-data->map-data)
                        (reduce (fn [a {p :prerequisite t :task}]
@@ -73,7 +75,8 @@
   {:test (fn []
            (is= (-> (create-state test-data)
                     (do-one-task))
-                {:done-tasks    ["C"]
+                {:time          0
+                 :done-tasks    ["C"]
                  :undone-tasks  ["A" "B" "D" "E" "F"]
                  :prerequisites {"B" ["A"]
                                  "D" ["A"]
@@ -105,15 +108,15 @@
   {:test (fn []
            (is= (-> (create-state test-data)
                     (do-all-tasks))
-                {:done-tasks    ["C" "A" "B" "D" "F" "E"]
+                {:time          0
+                 :done-tasks    ["C" "A" "B" "D" "F" "E"]
                  :undone-tasks  []
                  :prerequisites {}}))}
   [state]
-  (loop [state state]
-    (let [state (do-one-task state)]
-      (if (empty? (:undone-tasks state))
-        state
-        (recur state)))))
+  (let [state (do-one-task state)]
+    (if (empty? (:undone-tasks state))
+      state
+      (recur state))))
 
 (deftest puzzle-part-1
          (is= (->> (get-puzzle-input)
@@ -141,15 +144,48 @@
            (is= (get-task-time "A" 0) 1)
            (is= (get-task-time "Z" 0) 26)
            (is= (get-task-time "A" 60) 61)
-           (is= (get-task-time "Z" 60) 86)
-           (error? (get-task-time "_" 0)))}
+           (is= (get-task-time "Z" 60) 86))}
   [task delay]
   {:pre [(re-matches (re-pattern "[A-Z]") task)]}
   (+ delay (- (int (first task)) 64)))
 
 (defn do-all-tasks-simultaneously
+  {:test (fn []
+           (is= (-> (create-state test-data)
+                    (do-all-tasks-simultaneously 2)
+                    (:done-tasks))
+                ["C" "A" "B" "F" "D" "E"]))}
   [state number-of-workers]
-  ())
+  (loop [state state
+         workers (reduce (fn [a v] (assoc a v nil))
+                         {}
+                         (range number-of-workers))]
+    (let [tasks (available-tasks state)]
+      (reduce (fn [a v] (cond (nil? (get-in a [:workers v]))
+                              (if-let [first-task (first (:tasks a))]
+                                (-> a
+                                    (assoc-in [:workers v] {:task      first-task
+                                                            :time-left (get-task-time first-task 0)})
+                                    (update :tasks rest))
+                                a)
+
+                              (= 1 (get-in a [:workers v :time-left]))
+                              (let [a (update a :done-tasks conj (get-in a [:workers v :task]))]
+                                (if-let [first-task (first (:tasks a))]
+                                  (-> a
+                                      (assoc-in [:workers v] {:task      first-task
+                                                              :time-left (get-task-time first-task 0)})
+                                      (update :tasks rest))
+                                  (assoc-in a [:workers v] nil)))
+
+                              :else
+                              (update-in a [:workers v :time-left] dec)))
+              {:workers    workers
+               :tasks      tasks
+               :done-tasks (:done-tasks state)}
+              (keys workers)
+              ))
+    ))
 
 
 
