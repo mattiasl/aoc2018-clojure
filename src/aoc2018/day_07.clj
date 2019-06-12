@@ -32,20 +32,6 @@
     (let [[_ p t] (re-find pattern string-data)]
       {:prerequisite p :task t})))
 
-(defn get-prerequisites
-  {:test (fn []
-           (is= (get-prerequisites test-data "E")
-                ["B" "D" "F"])
-           (is= (get-prerequisites test-data "A")
-                ["C"])
-           (is= (get-prerequisites test-data "C")
-                []))}
-  [data task]
-  (->> data
-       (map string-data->map-data)
-       (filter (fn [{p :prerequisite t :task}]
-                 (= t task)))
-       (map (fn [{p :prerequisite}] p))))
 
 (defn create-state-part-1
   {:test (fn []
