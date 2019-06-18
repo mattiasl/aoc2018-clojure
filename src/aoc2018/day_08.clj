@@ -28,10 +28,8 @@
 (defn get-node
   {:test (fn []
            (is= (get-node [2 3 0 3 10 11 12 1 1 0 1 99 2 1 1 2])
-                [{:children [{:children []
-                              :metadata [10 11 12]}
-                             {:children [{:children []
-                                          :metadata [99]}]
+                [{:children [{:metadata [10 11 12]}
+                             {:children [{:metadata [99]}]
                               :metadata [2]}]
                   :metadata [1 1 2]}
                  []]))}
@@ -39,8 +37,9 @@
   (let [[number-of-children metadata & numbers] numbers
         [children numbers] (get-children number-of-children numbers)
         [metadata numbers] (get-metadata metadata numbers)]
-    [{:children children
-      :metadata metadata}
+    [(merge {:metadata metadata}
+            (when-not (empty? children)
+              {:children children}))
      numbers]))
 
 
@@ -62,6 +61,7 @@
                    (sum-metadata-part-1))
               35852))
 
+(def s (atom []))
 
 (defn sum-metadata-part-2
   {:test (fn []
@@ -80,21 +80,27 @@
            (is= (-> (get-node [2 3 0 3 10 11 12 1 1 0 1 99 2 1 1 2])
                     (first)
                     (sum-metadata-part-2))
-                66))}
+                66)
+           (is= (-> (get-node [1 2 2 3 0 3 10 11 12 1 1 0 1 99 2 1 1 2 1 1])
+                    (first)
+                    (sum-metadata-part-2))
+                132))}
   [node]
-  (if (empty? (:children node))
+  (if-not (contains? node :children)
     (apply + (:metadata node))
     (let [children-sums (map sum-metadata-part-2 (:children node))]
+      (swap! s conj {:c children-sums :m (:metadata node)})
       (apply + (->> (:metadata node)
                     (map (fn [index]
-                           (when (< index (count children-sums))
-                             (nth children-sums (dec index)))))
-                    (remove nil?))))))
+                           (if (and (pos? index) (<= index (count children-sums)))
+                             (nth children-sums (dec index))
+                             0))))))))
 
 
-(deftest puzzle-part-1
+(deftest puzzle-part-2
          (is= (->> (get-puzzle-input)
                    (get-node)
                    (first)
                    (sum-metadata-part-2))
-              0))
+              33422))
+
