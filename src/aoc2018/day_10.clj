@@ -205,7 +205,7 @@
                    "#...#..###\n")))
 
 (defn puzzle-solutions []
-  (-> (get-puzzle-input)
-                 (create-state)
-                 (tick-until-smallest-shape)
-                 (state->string)))
+  (time (-> (get-puzzle-input)
+            (create-state)
+            (tick-until-smallest-shape)
+            (state->string))))
